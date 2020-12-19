@@ -1,0 +1,167 @@
+---
+title: "Project"
+author: "Emmanuel"
+date: "12/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(readr)
+library(coefplot)
+Homeowner_data <- read_csv("~/Desktop/Econometrics/Homeowner.data.csv")
+```
+
+```{r}
+
+#The code below creates my subset of the data which is between and including the ages of 20 and 87 with a family size of at least 3.
+#I also setup RACE, HOMEOWNERSHIP, MARITAL STATUS, & EDUC level as factors (some ordered).
+
+Homeowner_data$REF_RACE <- as.factor(Homeowner_data$REF_RACE)
+levels(Homeowner_data$REF_RACE) <- c("White", "Black", "Native American", "Asian", "Pacific Islander", "Multi Race")
+Homeowner_data$CUTENURE <- as.factor(Homeowner_data$CUTENURE)
+levels(Homeowner_data$CUTENURE) <- c("Mortgage","No Mortgage","Mortgage Status Not Reported", "Renter", "Occupied Without Payment Of Cash", "Student Housing")
+Homeowner_data$EDUC_REF <- as.factor(Homeowner_data$EDUC_REF)
+levels(Homeowner_data$EDUC_REF) <- c("Never Attended","Grade 8","High School No Degree", "High School", "Some College", "Associates", "Bachelors", "Masters or PHD")
+Homeowner_data$MARITAL1 <- as.factor(Homeowner_data$MARITAL1)
+levels(Homeowner_data$MARITAL1) <- c("Married","Widowed","Divorced", "Seperated", "Never Married")
+
+use_varb <- (Homeowner_data$AGE_REF >= 20) & (Homeowner_data$AGE_REF <= 87) & (Homeowner_data$FAM_SIZE >= 3)
+dat_use <- subset(Homeowner_data,use_varb) 
+
+```
+
+```{r}
+
+#The regression below attempts to find a relationship between yearly wages and several variables in order to find what variables in the data set would be good predictors for a homeowner in my subset.
+
+model_temp1 <- lm(FWAGEXM ~ AGE_REF + EDUC_REF + REF_RACE + CUTENURE + SEX_REF,  data = dat_use)  
+summary(model_temp1)
+plot(model_temp1)
+require(stargazer)
+stargazer(model_temp1, type = "default")
+
+# The strong predictors for male homeownership seems to be wages, education, race. When family size is added to the subset the wages for both asian male and black male homeowners the slope becomes positive. Do extra family members persuade companies to pay more in wages? Something to think about.
+
+reg_biv <- lm(FWAGEXM ~ AGE_REF + REF_RACE + EDUC_REF, data = dat_use)  
+
+age_35_bachelors <- coef(reg_biv)[1] + 35*coef(reg_biv)[2] + coef(reg_biv)[3] + coef(reg_biv)[4]
+
+summary(reg_biv)
+
+print("Mean Wage of Age 35 person in my subset")
+print(age_35_bachelors)
+
+```
+
+```{r}
+
+#Predicting the peak wage age of a black male homeowner with a bachelors degree.
+
+NNobs <- length(dat_use$FWAGEXM)
+set.seed(12345) 
+graph_obs <- (runif(NNobs) < 0.1)
+dat_graph <-subset(dat_use,graph_obs)
+
+plot(FWAGEXM ~ jitter(AGE_REF, factor = 2), pch = 16, col = rgb(1, 0.2, 0.6, alpha = 0.2), main = "Wage vs Age for a black female homeowner with a bachelors degree", xlab = "Age", ylab = "Wage", ylim = c(40000,150000), data = dat_graph)
+
+to_be_predicted2 <- data.frame(AGE_REF = 20:87, REF_RACE = "Black", EDUC_REF = "Bachelors", CUTENURE = "Mortgage", CUTENURE = "No Mortgage", CUTENURE = "Mortgage Status Not Reported", SEX_REF = 2)
+to_be_predicted2$yhat <- predict(model_temp1, newdata = to_be_predicted2)
+
+lines(yhat ~ AGE_REF, data = to_be_predicted2)
+
+# For a black male homeowner with a bachelors degree, yearly wage starts at around $130,000 at age 20 and decreases at all ages from 20 to 80.
+
+```
+
+```{r}
+
+#Predicting the peak wage age of an asian male homeowner with a bachelors degree.
+
+NNobs <- length(dat_use$FWAGEXM)
+set.seed(12345) 
+graph_obs <- (runif(NNobs) < 0.1)
+dat_graph <-subset(dat_use,graph_obs)
+
+plot(FWAGEXM ~ jitter(AGE_REF, factor = 2), pch = 16, col = rgb(1, 0.2, 0.6, alpha = 0.2), main = "Wage vs Age for an asian female homeowner with a bachelors degree", xlab = "Age", ylab = "Wage", ylim = c(80000,170000), data = dat_graph)
+
+to_be_predicted2 <- data.frame(AGE_REF = 20:87, REF_RACE = "Asian", EDUC_REF = "Bachelors", CUTENURE = "Mortgage", CUTENURE = "No Mortgage", CUTENURE = "Mortgage Status Not Reported", SEX_REF = 2)
+to_be_predicted2$yhat <- predict(model_temp1, newdata = to_be_predicted2)
+
+lines(yhat ~ AGE_REF, data = to_be_predicted2)
+
+# For an asian male homeowner with a bachelors degree, yearly wage starts at around $170,000 at age 20 and decreases at all ages from 20 to 80 but the slope is not as high (negatively) compared to the black male.
+
+#This is interesting because it shows that black men are making less wages at all ages vs asian men with the same college degree.
+
+#When family size is added to the subset the graph for wages for both asian male and black male homeowners has a positive slope. Do extra family members persuade companies to pay more in wages? Maybe family men are more likely to strive for higher wages? Something to think about.
+
+```
+
+```{r}
+
+# taking the log of the wage function allows for comparing values using percent changes and reducing the effect of education on wage. 
+
+model_temp3 <- lm(log1p(FWAGEXM) ~ AGE_REF + REF_RACE + EDUC_REF + CUTENURE + MARITAL1 + SEX_REF, data = dat_use) 
+summary(model_temp3)
+plot(model_temp3)
+require(stargazer)
+stargazer(model_temp3, type = "default")
+
+```
+
+```{r}
+
+REF_RACEB <- factor(c("0", "1", "0", "0", "0", "0"))
+as.logical(as.integer(levels(REF_RACEB)[REF_RACEB]))
+as.logical(as.integer(REF_RACEB) - 1L)
+as.logical(as.integer(as.character(REF_RACEB)))
+as.logical(REF_RACEB)
+levels(REF_RACEB) <- c(FALSE,TRUE)
+REF_RACEB <- as.logical(REF_RACEB)
+na.omit(REF_RACEB)
+
+SEX_REFB <- factor(c("0", "1"))
+as.logical(as.integer(levels(SEX_REFB)[SEX_REFB]))
+as.logical(as.integer(SEX_REFB) - 1L)
+as.logical(as.integer(as.character(SEX_REFB)))
+levels(SEX_REFB) <- c(FALSE,TRUE)
+SEX_REFB <- as.logical(SEX_REFB)
+na.omit(SEX_REFB)
+
+EDUC_REFB <- factor(c("0", "0", "0", "1", "0", "0", "0", "0"))
+as.logical(as.integer(levels(EDUC_REFB)[EDUC_REFB]))
+as.logical(as.integer(EDUC_REFB) - 1L)
+as.logical(as.integer(as.character(EDUC_REFB)))
+levels(EDUC_REFB) <- c(FALSE,TRUE)
+EDUC_REFB <- as.logical(EDUC_REFB)
+na.omit(EDUC_REFB)
+
+model_temp2 <- lm(FWAGEXM ~ AGE_REF + I(AGE_REF^2) + I(REF_RACEB * SEX_REF) + SEX_REF + REF_RACE + EDUC_REF + CUTENURE + MARITAL1, data = dat_use) 
+summary(model_temp2)
+plot(model_temp2)
+require(stargazer)
+stargazer(model_temp2, type = "default")
+
+```
+
+```{r}
+
+pick_use1 <- (Homeowner_data$AGE_REF >= 20) & (Homeowner_data$AGE_REF <= 87) & (Homeowner_data$FAM_SIZE >= 3)
+dat_use1 <- subset(Homeowner_data,pick_use1) 
+model_logit1 <- glm(CUTENURE ~ AGE_REF + I(AGE_REF^2) + EDUC_REF + REF_RACE + I(EDUC_REFB*SEX_REF) + SEX_REF, family = binomial, data = dat_use1)
+summary(model_logit1)
+
+nw_data2<- data.frame(AGE_REF=20:87, REF_RACE = "Black", EDUC_REF = "Bachelors", CUTENURE = "Mortgage", CUTENURE = "No Mortgage", CUTENURE = "Mortgage Status Not Reported", SEX_REF = 1)
+nw_data2$yhat<-predict(model_logit1, nw_data2, type="response")
+
+
+plot(nw_data2$yhat ~nw_data2$AGE , pch = 16, ylim = c(0,1.5), main = "Homeownership rate", xlab = "Age", ylab = "Percentage increase for meeting all the required variables", col = "green")
+
+coefplot(model_logit1, innerCI=2, outerCI=0, intercept = FALSE, title = "Logit Model", color = "blue", lab = "Explantory Variables")
+```
+                    
